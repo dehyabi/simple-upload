@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Upload File</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --text: #16181d;
+    --muted: #6b7280;
+    --border: #e3e5ea;
+    --accent: #3b5bdb;
+    --accent-soft: #eef2ff;
+    --danger: #d64545;
+    --ok: #2f9e44;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101114;
+      --card: #17191e;
+      --text: #e9eaee;
+      --muted: #9aa0ab;
+      --border: #292c33;
+      --accent: #7d94ff;
+      --accent-soft: #1e2333;
+      --danger: #ff7b7b;
+      --ok: #6ddc8a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px 16px 64px;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 24px; }
+  .sub code { background: var(--card); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; }
+
+  .drop {
+    background: var(--card);
+    border: 2px dashed var(--border);
+    border-radius: 14px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+  .drop strong { display: block; font-size: 16px; margin-bottom: 4px; }
+  .drop span { color: var(--muted); font-size: 13px; }
+
+  .queue { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .qi {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; font-size: 13px;
+  }
+  .qi .row { display: flex; justify-content: space-between; gap: 12px; }
+  .qi .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .qi .st { color: var(--muted); flex: none; }
+  .bar { height: 4px; background: var(--border); border-radius: 4px; margin-top: 8px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .1s linear; }
+  .qi.ok .st { color: var(--ok); }
+  .qi.err .st { color: var(--danger); }
+  .qi.err .bar > i { background: var(--danger); }
+
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 32px 0 12px; }
+  .files { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .empty { padding: 28px; text-align: center; color: var(--muted); font-size: 13px; }
+  .fi {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 14px;
+  }
+  .fi:last-child { border-bottom: 0; }
+  .fi .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; text-decoration: none; }
+  .fi .nm:hover { color: var(--accent); text-decoration: underline; }
+  .fi .meta { color: var(--muted); font-size: 12px; flex: none; }
+  .btn {
+    border: 1px solid var(--border); background: transparent; color: var(--muted);
+    border-radius: 7px; padding: 4px 9px; font-size: 12px; cursor: pointer; flex: none;
+    text-decoration: none; line-height: 1.4;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.del:hover { border-color: var(--danger); color: var(--danger); }
+  input[type=file] { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Upload File</h1>
+  <p class="sub">File tersimpan di <code id="dir">…</code></p>
+
+  <div class="drop" id="drop">
+    <strong>Klik atau tarik file ke sini</strong>
+    <span>bisa banyak file sekaligus</span>
+  </div>
+  <input type="file" id="picker" multiple />
+  <div class="queue" id="queue"></div>
+
+  <h2>File tersimpan</h2>
+  <div class="files" id="files"><div class="empty">Memuat…</div></div>
+</div>
+
+<script>
+const drop = document.getElementById('drop');
+const picker = document.getElementById('picker');
+const queue = document.getElementById('queue');
+const filesEl = document.getElementById('files');
+const dirEl = document.getElementById('dir');
+
+function fmtSize(n) {
+  if (n < 1024) return n + ' B';
+  const u = ['KB', 'MB', 'GB', 'TB'];
+  let i = -1;
+  do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
+  return n.toFixed(n < 10 ? 1 : 0) + ' ' + u[i];
+}
+
+function fmtTime(ms) {
+  return new Date(ms).toLocaleString('id-ID', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
+// ── Daftar file ──────────────────────────────────────────────────────────────
+async function loadFiles() {
+  try {
+    const res = await fetch('/api/files');
+    const data = await res.json();
+    dirEl.textContent = data.dir;
+    render(data.files);
+  } catch {
+    filesEl.innerHTML = '<div class="empty">Gagal memuat daftar file</div>';
+  }
+}
+
+function render(files) {
+  if (!files.length) {
+    filesEl.innerHTML = '<div class="empty">Belum ada file</div>';
+    return;
+  }
+  filesEl.innerHTML = '';
+  for (const f of files) {
+    const row = document.createElement('div');
+    row.className = 'fi';
+
+    const a = document.createElement('a');
+    a.className = 'nm';
+    a.href = '/files/' + encodeURIComponent(f.name);
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.textContent = f.name;
+    a.title = f.name;
+
+    const meta = document.createElement('span');
+    meta.className = 'meta';
+    meta.textContent = fmtSize(f.size) + ' · ' + fmtTime(f.mtime);
+
+    const dl = document.createElement('a');
+    dl.className = 'btn';
+    dl.href = '/files/' + encodeURIComponent(f.name) + '?download=1';
+    dl.textContent = 'Unduh';
+
+    const del = document.createElement('button');
+    del.className = 'btn del';
+    del.textContent = 'Hapus';
+    del.onclick = async () => {
+      if (!confirm('Hapus "' + f.name + '"?')) return;
+      await fetch('/api/files/' + encodeURIComponent(f.name), { method: 'DELETE' });
+      loadFiles();
+    };
+
+    row.append(a, meta, dl, del);
+    filesEl.append(row);
+  }
+}
+
+// ── Upload ───────────────────────────────────────────────────────────────────
+function queueItem(file) {
+  const el = document.createElement('div');
+  el.className = 'qi';
+  el.innerHTML =
+    '<div class="row"><span class="nm"></span><span class="st">Menunggu…</span></div>' +
+    '<div class="bar"><i></i></div>';
+  el.querySelector('.nm').textContent = file.name;
+  queue.append(el);
+  return {
+    el,
+    st: el.querySelector('.st'),
+    bar: el.querySelector('.bar > i'),
+    set(pct, text, cls) {
+      this.bar.style.width = pct + '%';
+      this.st.textContent = text;
+      if (cls) el.className = 'qi ' + cls;
+    },
+  };
+}
+
+function upload(file) {
+  const item = queueItem(file);
+  const form = new FormData();
+  form.append('file', file, file.name);
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/upload');
+
+  xhr.upload.onprogress = (e) => {
+    if (!e.lengthComputable) return;
+    const pct = (e.loaded / e.total) * 100;
+    item.set(pct, Math.round(pct) + '%');
+  };
+
+  xhr.onload = () => {
+    let data = {};
+    try { data = JSON.parse(xhr.responseText); } catch {}
+    if (xhr.status >= 200 && xhr.status < 300) {
+      const saved = (data.files || [])[0];
+      item.set(100, 'Selesai' + (saved && saved.name !== file.name ? ' → ' + saved.name : ''), 'ok');
+    } else {
+      item.set(100, data.error || ('Gagal (' + xhr.status + ')'), 'err');
+    }
+    loadFiles();
+  };
+
+  xhr.onerror = () => item.set(100, 'Koneksi gagal', 'err');
+  xhr.send(form);
+}
+
+function handleFiles(list) {
+  for (const f of list) upload(f);
+}
+
+drop.onclick = () => picker.click();
+picker.onchange = () => { handleFiles(picker.files); picker.value = ''; };
+
+['dragenter', 'dragover'].forEach((ev) =>
+  drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); })
+);
+['dragleave', 'drop'].forEach((ev) =>
+  drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); })
+);
+drop.addEventListener('drop', (e) => {
+  if (e.dataTransfer && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+});
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('drop', (e) => e.preventDefault());
+
+loadFiles();
+</script>
+</body>
+</html>

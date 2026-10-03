@@ -1,0 +1,10 @@
+{
+  "name": "upload-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Server + UI upload file sederhana (tanpa dependency)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

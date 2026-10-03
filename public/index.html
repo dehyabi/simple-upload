@@ -42,24 +42,45 @@
   .sub { color: var(--muted); font-size: 13px; margin: 0 0 24px; }
   .sub code { background: var(--card); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; }
 
+  /* ── Auth ── */
+  .auth { max-width: 380px; margin: 10vh auto 0; }
+  .auth h1 { text-align: center; margin-bottom: 6px; }
+  .auth .sub { text-align: center; }
+  .panel {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 22px;
+  }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 0 0 6px; }
+  input[type=text], input[type=password] {
+    width: 100%; padding: 10px 12px; margin-bottom: 14px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 9px; font: inherit; font-size: 14px;
+  }
+  input[type=text]:focus, input[type=password]:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+  .primary {
+    width: 100%; padding: 10px 12px; border: 0; border-radius: 9px;
+    background: var(--accent); color: #fff; font: inherit; font-weight: 600; cursor: pointer;
+  }
+  .primary:disabled { opacity: .6; cursor: default; }
+  .msg { font-size: 13px; margin: 0 0 14px; display: none; }
+  .msg.show { display: block; }
+  .msg.err { color: var(--danger); }
+  .msg.ok { color: var(--ok); }
+  .hint { font-size: 12px; color: var(--muted); margin: 14px 0 0; text-align: center; }
+
+  /* ── Aplikasi ── */
+  .top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .who { font-size: 13px; color: var(--muted); }
+  .link { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; text-decoration: underline; }
   .drop {
-    background: var(--card);
-    border: 2px dashed var(--border);
-    border-radius: 14px;
-    padding: 40px 20px;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color .15s, background .15s;
+    background: var(--card); border: 2px dashed var(--border); border-radius: 14px;
+    padding: 40px 20px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
   }
   .drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
   .drop strong { display: block; font-size: 16px; margin-bottom: 4px; }
   .drop span { color: var(--muted); font-size: 13px; }
-
   .queue { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
-  .qi {
-    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-    padding: 10px 12px; font-size: 13px;
-  }
+  .qi { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13px; }
   .qi .row { display: flex; justify-content: space-between; gap: 12px; }
   .qi .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .qi .st { color: var(--muted); flex: none; }
@@ -68,14 +89,10 @@
   .qi.ok .st { color: var(--ok); }
   .qi.err .st { color: var(--danger); }
   .qi.err .bar > i { background: var(--danger); }
-
   h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 32px 0 12px; }
   .files { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
   .empty { padding: 28px; text-align: center; color: var(--muted); font-size: 13px; }
-  .fi {
-    display: flex; align-items: center; gap: 12px;
-    padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 14px;
-  }
+  .fi { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 14px; }
   .fi:last-child { border-bottom: 0; }
   .fi .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; text-decoration: none; }
   .fi .nm:hover { color: var(--accent); text-decoration: underline; }
@@ -88,12 +105,36 @@
   .btn:hover { border-color: var(--accent); color: var(--accent); }
   .btn.del:hover { border-color: var(--danger); color: var(--danger); }
   input[type=file] { display: none; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
-<div class="wrap">
+
+<!-- ── Login / Daftar ─────────────────────────────────────────────────────── -->
+<section class="wrap auth" id="viewAuth" hidden>
   <h1>Upload File</h1>
-  <p class="sub">File tersimpan di <code id="dir">…</code></p>
+  <p class="sub" id="authSub">Masuk untuk melanjutkan</p>
+
+  <form class="panel" id="authForm" autocomplete="on">
+    <p class="msg" id="authMsg"></p>
+    <label for="username">Username</label>
+    <input type="text" id="username" name="username" autocomplete="username" required />
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" autocomplete="current-password" required />
+    <button class="primary" id="authBtn" type="submit">Masuk</button>
+    <p class="hint" id="authHint"></p>
+  </form>
+</section>
+
+<!-- ── Aplikasi ───────────────────────────────────────────────────────────── -->
+<main class="wrap" id="viewApp" hidden>
+  <div class="top">
+    <div>
+      <h1>Upload File</h1>
+      <p class="sub">File tersimpan di <code id="dir">…</code></p>
+    </div>
+    <span class="who">Masuk sebagai <strong id="who">…</strong> · <button class="link" id="logout">Keluar</button></span>
+  </div>
 
   <div class="drop" id="drop">
     <strong>Klik atau tarik file ke sini</strong>
@@ -104,14 +145,16 @@
 
   <h2>File tersimpan</h2>
   <div class="files" id="files"><div class="empty">Memuat…</div></div>
-</div>
+</main>
 
 <script>
-const drop = document.getElementById('drop');
-const picker = document.getElementById('picker');
-const queue = document.getElementById('queue');
-const filesEl = document.getElementById('files');
-const dirEl = document.getElementById('dir');
+const $ = (id) => document.getElementById(id);
+const viewAuth = $('viewAuth'), viewApp = $('viewApp');
+const authForm = $('authForm'), authMsg = $('authMsg'), authBtn = $('authBtn');
+const authSub = $('authSub'), authHint = $('authHint');
+const usernameEl = $('username'), passwordEl = $('password');
+
+let mode = 'login'; // 'login' | 'register'
 
 function fmtSize(n) {
   if (n < 1024) return n + ' B';
@@ -120,31 +163,107 @@ function fmtSize(n) {
   do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
   return n.toFixed(n < 10 ? 1 : 0) + ' ' + u[i];
 }
-
 function fmtTime(ms) {
   return new Date(ms).toLocaleString('id-ID', {
     day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
   });
 }
+function showMsg(text, kind) {
+  authMsg.textContent = text;
+  authMsg.className = 'msg show ' + (kind || 'err');
+}
+
+// ── Mode form ────────────────────────────────────────────────────────────────
+function setMode(next, registered) {
+  mode = next;
+  const daftar = next === 'register';
+  authSub.textContent = daftar ? 'Buat akun pertama' : 'Masuk untuk melanjutkan';
+  authBtn.textContent = daftar ? 'Daftar' : 'Masuk';
+  passwordEl.autocomplete = daftar ? 'new-password' : 'current-password';
+  authHint.textContent = daftar
+    ? 'Akun ini satu-satunya. Setelah dibuat, pendaftaran ditutup permanen.'
+    : '';
+  authMsg.className = 'msg';
+  authForm.reset();
+  usernameEl.focus();
+}
+
+// ── Alur auth ─────────────────────────────────────────────────────────────────
+async function boot() {
+  let s = { registered: false, username: null };
+  try {
+    s = await (await fetch('/api/auth/status')).json();
+  } catch {
+    viewAuth.hidden = false;
+    showMsg('Tidak bisa menghubungi server');
+    return;
+  }
+
+  if (s.username) {
+    viewAuth.hidden = true;
+    viewApp.hidden = false;
+    $('who').textContent = s.username;
+    loadFiles();
+    return;
+  }
+
+  viewAuth.hidden = false;
+  viewApp.hidden = true;
+  // Registrasi hanya muncul kalau memang belum ada akun sama sekali.
+  setMode(s.registered ? 'login' : 'register', s.registered);
+}
+
+authForm.onsubmit = async (e) => {
+  e.preventDefault();
+  authBtn.disabled = true;
+  authMsg.className = 'msg';
+  try {
+    const res = await fetch('/api/auth/' + mode, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: usernameEl.value, password: passwordEl.value }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      showMsg('Berhasil. Memuat…', 'ok');
+      await boot();
+    } else {
+      showMsg(data.error || ('Gagal (' + res.status + ')'));
+      authBtn.disabled = false;
+    }
+  } catch {
+    showMsg('Tidak bisa menghubungi server');
+    authBtn.disabled = false;
+  }
+};
+
+$('logout').onclick = async () => {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  location.reload();
+};
 
 // ── Daftar file ──────────────────────────────────────────────────────────────
 async function loadFiles() {
+  let res;
   try {
-    const res = await fetch('/api/files');
-    const data = await res.json();
-    dirEl.textContent = data.dir;
-    render(data.files);
+    res = await fetch('/api/files');
   } catch {
-    filesEl.innerHTML = '<div class="empty">Gagal memuat daftar file</div>';
+    $('files').innerHTML = '<div class="empty">Gagal memuat daftar file</div>';
+    return;
   }
+  if (res.status === 401) { boot(); return; } // sesi habis
+  const data = await res.json();
+  $('dir').textContent = data.dir;
+  render(data.files);
 }
 
 function render(files) {
+  const box = $('files');
   if (!files.length) {
-    filesEl.innerHTML = '<div class="empty">Belum ada file</div>';
+    box.innerHTML = '<div class="empty">Belum ada file</div>';
     return;
   }
-  filesEl.innerHTML = '';
+  box.innerHTML = '';
   for (const f of files) {
     const row = document.createElement('div');
     row.className = 'fi';
@@ -171,16 +290,19 @@ function render(files) {
     del.textContent = 'Hapus';
     del.onclick = async () => {
       if (!confirm('Hapus "' + f.name + '"?')) return;
-      await fetch('/api/files/' + encodeURIComponent(f.name), { method: 'DELETE' });
+      const r = await fetch('/api/files/' + encodeURIComponent(f.name), { method: 'DELETE' });
+      if (r.status === 401) return boot();
       loadFiles();
     };
 
     row.append(a, meta, dl, del);
-    filesEl.append(row);
+    box.append(row);
   }
 }
 
 // ── Upload ───────────────────────────────────────────────────────────────────
+const drop = $('drop'), picker = $('picker'), queue = $('queue');
+
 function queueItem(file) {
   const el = document.createElement('div');
   el.className = 'qi';
@@ -208,35 +330,32 @@ function upload(file) {
 
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/api/upload');
-
-  xhr.upload.onprogress = (e) => {
-    if (!e.lengthComputable) return;
-    const pct = (e.loaded / e.total) * 100;
-    item.set(pct, Math.round(pct) + '%');
+  xhr.onreadystatechange = () => {
+    if (xhr.readyState === 4 && xhr.status === 401) boot();
   };
-
+  xhr.upload.onprogress = (e) => {
+    if (e.lengthComputable) item.set((e.loaded / e.total) * 100, Math.round((e.loaded / e.total) * 100) + '%');
+  };
   xhr.onload = () => {
     let data = {};
     try { data = JSON.parse(xhr.responseText); } catch {}
     if (xhr.status >= 200 && xhr.status < 300) {
       const saved = (data.files || [])[0];
       item.set(100, 'Selesai' + (saved && saved.name !== file.name ? ' → ' + saved.name : ''), 'ok');
-    } else {
+    } else if (xhr.status !== 401) {
       item.set(100, data.error || ('Gagal (' + xhr.status + ')'), 'err');
     }
     loadFiles();
   };
-
   xhr.onerror = () => item.set(100, 'Koneksi gagal', 'err');
   xhr.send(form);
 }
 
-function handleFiles(list) {
-  for (const f of list) upload(f);
-}
-
 drop.onclick = () => picker.click();
-picker.onchange = () => { handleFiles(picker.files); picker.value = ''; };
+picker.onchange = () => {
+  for (const f of picker.files) upload(f);
+  picker.value = '';
+};
 
 ['dragenter', 'dragover'].forEach((ev) =>
   drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); })
@@ -245,12 +364,14 @@ picker.onchange = () => { handleFiles(picker.files); picker.value = ''; };
   drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); })
 );
 drop.addEventListener('drop', (e) => {
-  if (e.dataTransfer && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+  if (e.dataTransfer && e.dataTransfer.files.length) {
+    for (const f of e.dataTransfer.files) upload(f);
+  }
 });
 window.addEventListener('dragover', (e) => e.preventDefault());
 window.addEventListener('drop', (e) => e.preventDefault());
 
-loadFiles();
+boot();
 </script>
 </body>
 </html>

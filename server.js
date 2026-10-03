@@ -5,6 +5,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
+const auth = require('./auth');
 
 // ── Konfigurasi ──────────────────────────────────────────────────────────────
 const PORT = Number(process.env.PORT) || 3000;
@@ -41,7 +42,76 @@ const MIME = {
   '.zip': 'application/zip',
 };
 
+const MAX_JSON_BODY = 8 * 1024;
+
 // ── Helper ───────────────────────────────────────────────────────────────────
+function readJson(req) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > MAX_JSON_BODY) {
+        reject(Object.assign(new Error('Body terlalu besar'), { status: 413 }));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      if (!chunks.length) return resolve({});
+      try {
+        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        resolve(parsed && typeof parsed === 'object' ? parsed : {});
+      } catch {
+        reject(Object.assign(new Error('JSON tidak valid'), { status: 400 }));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+// Batasi percobaan login per IP: 10 gagal -> kunci 5 menit.
+const LOGIN_MAX_FAILS = 10;
+const LOGIN_LOCK_MS = 5 * 60 * 1000;
+const loginFails = new Map();
+
+function loginLockRemaining(ip) {
+  const entry = loginFails.get(ip);
+  if (!entry) return 0;
+  if (entry.until && entry.until > Date.now()) return entry.until - Date.now();
+  return 0;
+}
+
+function noteLoginFail(ip) {
+  const entry = loginFails.get(ip) || { count: 0, until: 0 };
+  entry.count += 1;
+  if (entry.count >= LOGIN_MAX_FAILS) {
+    entry.until = Date.now() + LOGIN_LOCK_MS;
+    entry.count = 0;
+  }
+  loginFails.set(ip, entry);
+}
+
+// Mengembalikan username kalau cookie sesi valid, atau null (tanpa merespons).
+function currentUser(req) {
+  const token = auth.parseCookies(req.headers.cookie)[auth.COOKIE_NAME];
+  return auth.verifyToken(token);
+}
+
+// Gerbang auth. Kalau tidak login: API dapat 401 JSON, halaman dapat redirect.
+function requireAuth(req, res, { isApi }) {
+  const username = currentUser(req);
+  if (username) return username;
+  if (isApi) {
+    sendJson(res, 401, { error: 'Belum login' });
+  } else {
+    res.writeHead(302, { Location: '/', 'Cache-Control': 'no-store' });
+    res.end();
+  }
+  return null;
+}
+
 function sendJson(res, status, data) {
   const body = JSON.stringify(data);
   res.writeHead(status, {
@@ -314,10 +384,59 @@ const server = http.createServer(async (req, res) => {
   const pathname = decodeURIComponent(url.pathname);
 
   try {
-    // UI
+    // UI — halaman menentukan sendiri mau menampilkan form login atau aplikasi
     if (req.method === 'GET' && (pathname === '/' || pathname === '/index.html')) {
       await serveStatic(res, path.join(PUBLIC_DIR, 'index.html'));
       return;
+    }
+
+    // ── Auth ────────────────────────────────────────────────────────────────
+    if (req.method === 'GET' && pathname === '/api/auth/status') {
+      sendJson(res, 200, { ...auth.status(), username: currentUser(req) });
+      return;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/auth/register') {
+      const body = await readJson(req);
+      const { username, token } = await auth.register(body.username, body.password);
+      res.setHeader('Set-Cookie', auth.sessionCookie(token));
+      sendJson(res, 200, { username });
+      return;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/auth/login') {
+      const ip = req.socket.remoteAddress || '?';
+      const wait = loginLockRemaining(ip);
+      if (wait > 0) {
+        sendJson(res, 429, {
+          error: `Terlalu banyak percobaan. Coba lagi dalam ${Math.ceil(wait / 1000)} detik.`,
+        });
+        return;
+      }
+      const body = await readJson(req);
+      const result = await auth.login(body.username, body.password);
+      if (!result) {
+        noteLoginFail(ip);
+        sendJson(res, 401, { error: 'Username atau password salah' });
+        return;
+      }
+      loginFails.delete(ip);
+      res.setHeader('Set-Cookie', auth.sessionCookie(result.token));
+      sendJson(res, 200, { username: result.username });
+      return;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/auth/logout') {
+      res.setHeader('Set-Cookie', auth.clearCookie());
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    // ── Semua endpoint di bawah ini wajib login ─────────────────────────────
+    if (pathname === '/api/files' || pathname === '/api/upload' ||
+        pathname.startsWith('/api/files/') || pathname.startsWith('/files/')) {
+      const api = pathname.startsWith('/api/');
+      if (!requireAuth(req, res, { isApi: api })) return;
     }
 
     // Daftar file
@@ -383,7 +502,7 @@ const server = http.createServer(async (req, res) => {
 
     sendJson(res, 404, { error: 'Not found' });
   } catch (err) {
-    sendJson(res, 500, { error: err.message });
+    sendJson(res, err.status || 500, { error: err.message });
   }
 });
 
